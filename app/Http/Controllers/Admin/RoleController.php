@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Role\StoreRoleRequest;
-use App\Http\Requests\Role\SyncRolePermissionsRequest;
-use App\Http\Requests\Role\UpdateRoleRequest;
-use App\Http\Resources\Role\RoleResource;
+use App\Http\Requests\Admin\Role\StoreRoleRequest;
+use App\Http\Requests\Admin\Role\SyncRolePermissionsRequest;
+use App\Http\Requests\Admin\Role\UpdateRoleRequest;
+use App\Http\Resources\Admin\Role\RoleResource;
 use App\Services\Role\RoleService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;

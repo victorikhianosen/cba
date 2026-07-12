@@ -3,83 +3,62 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-
-use App\Http\Requests\Admin\User\AssignUserRolesRequest;
-use App\Http\Requests\Admin\User\StoreUserRequest;
-use App\Http\Requests\Admin\User\UpdateUserRequest;
-use App\Http\Requests\Admin\User\UpdateUserStatusRequest;
-use App\Http\Resources\Admin\User\UserResource;
-use App\Services\User\UserService;
+use App\Http\Requests\Admin\AccountTier\StoreAccountTierRequest;
+use App\Http\Requests\Admin\AccountTier\UpdateAccountTierRequest;
+use App\Http\Requests\Admin\AccountTier\UpdateAccountTierStatusRequest;
+use App\Http\Resources\Admin\AccountTier\AccountTierResource;
+use App\Services\AccountTier\AccountTierService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
-class UserController extends Controller
+class AccountTierController extends Controller
 {
     use ApiResponse;
 
     public function __construct(
-        private UserService $users,
+        private AccountTierService $tiers,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
-        $users = $this->users->list($request->integer('per_page', 15));
+        $tiers = $this->tiers->list($request->integer('per_page', 15));
 
         return $this->success(
-            message: 'Users retrieved successfully.',
-            data: UserResource::collection($users),
+            message: 'Account tiers retrieved successfully.',
+            data: AccountTierResource::collection($tiers),
         );
     }
 
     public function show(int $id): JsonResponse
     {
-        $user = $this->users->find($id);
+        $tier = $this->tiers->find($id);
 
         return $this->success(
-            message: 'User retrieved successfully.',
-            data: new UserResource($user),
+            message: 'Account tier retrieved successfully.',
+            data: new AccountTierResource($tier),
         );
     }
 
-    public function store(StoreUserRequest $request): JsonResponse
+    public function store(StoreAccountTierRequest $request): JsonResponse
     {
         try {
-            $user = $this->users->create($request->validated());
+            $tier = $this->tiers->create($request->validated());
 
             return $this->success(
-                message: 'User created successfully.',
-                data: new UserResource($user),
+                message: 'Account tier created successfully and is pending approval.',
+                data: new AccountTierResource($tier),
                 responseCode: '000',
                 statusCode: 201,
             );
-        } catch (\Throwable $e) {
-            report($e);
-
+        } catch (ValidationException $e) {
             return $this->error(
-                message: 'We are unable to process your request please try again.',
-                responseCode: '500',
-                statusCode: 500,
-            );
-        }
-    }
-
-    public function update(UpdateUserRequest $request, int $id): JsonResponse
-    {
-        try {
-            $user = $this->users->update($id, $request->validated());
-
-            return $this->success(
-                message: 'User updated successfully.',
-                data: new UserResource($user),
-            );
-        } catch (ModelNotFoundException $e) {
-            return $this->error(
-                message: 'The requested user was not found.',
-                responseCode: '404',
-                statusCode: 404,
+                message: $e->getMessage(),
+                responseCode: '101',
+                statusCode: 422,
+                errors: $e->errors(),
             );
         } catch (\Throwable $e) {
             report($e);
@@ -92,44 +71,19 @@ class UserController extends Controller
         }
     }
 
-    public function updateStatus(UpdateUserStatusRequest $request, int $id): JsonResponse
+    public function update(UpdateAccountTierRequest $request, int $id): JsonResponse
     {
         try {
-            $user = $this->users->updateStatus($id, $request->validated()['status']);
+            $tier = $this->tiers->find($id);
+            $tier = $this->tiers->update($tier, $request->validated());
+
             return $this->success(
-                message: 'User status updated successfully.',
-                data: new UserResource($user),
+                message: 'Account tier updated successfully.',
+                data: new AccountTierResource($tier),
             );
         } catch (ModelNotFoundException $e) {
             return $this->error(
-                message: 'The requested user was not found.',
-                responseCode: '404',
-                statusCode: 404,
-            );
-        } catch (\Throwable $e) {
-            report($e);
-
-            return $this->error(
-                message: 'We are unable to process your request please try again.',
-                responseCode: '500',
-                statusCode: 500,
-            );
-        }
-    }
-
-    public function assignRoles(AssignUserRolesRequest $request, int $id): JsonResponse
-    {
-        try {
-            $user = $this->users->find($id);
-            $user = $this->users->assignRoles($user, $request->validated()['roles']);
-
-            return $this->success(
-                message: 'Role(s) assigned to user successfully.',
-                data: new UserResource($user),
-            );
-        } catch (ModelNotFoundException $e) {
-            return $this->error(
-                message: 'The requested user was not found.',
+                message: 'The requested account tier was not found.',
                 responseCode: '404',
                 statusCode: 404,
             );
@@ -151,19 +105,19 @@ class UserController extends Controller
         }
     }
 
-    public function removeRoles(AssignUserRolesRequest $request, int $id): JsonResponse
+    public function approve(int $id): JsonResponse
     {
         try {
-            $user = $this->users->find($id);
-            $user = $this->users->removeRoles($user, $request->validated()['roles']);
+            $tier = $this->tiers->find($id);
+            $tier = $this->tiers->approve($tier);
 
             return $this->success(
-                message: 'Role(s) removed from user successfully.',
-                data: new UserResource($user),
+                message: 'Account tier approved successfully.',
+                data: new AccountTierResource($tier),
             );
         } catch (ModelNotFoundException $e) {
             return $this->error(
-                message: 'The requested user was not found.',
+                message: 'The requested account tier was not found.',
                 responseCode: '404',
                 statusCode: 404,
             );
@@ -173,6 +127,67 @@ class UserController extends Controller
                 responseCode: '101',
                 statusCode: 422,
                 errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function updateStatus(UpdateAccountTierStatusRequest $request, int $id): JsonResponse
+    {
+        try {
+            $tier = $this->tiers->find($id);
+            $tier = $this->tiers->updateStatus($tier, $request->validated()['status']);
+
+            return $this->success(
+                message: 'Account tier status updated successfully.',
+                data: new AccountTierResource($tier),
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested account tier was not found.',
+                responseCode: '404',
+                statusCode: 404,
+            );
+        } catch (ValidationException $e) {
+            return $this->error(
+                message: $e->getMessage(),
+                responseCode: '101',
+                statusCode: 422,
+                errors: $e->errors(),
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->error(
+                message: 'We are unable to process your request please try again.',
+                responseCode: '500',
+                statusCode: 500,
+            );
+        }
+    }
+
+    public function destroy(int $id): JsonResponse
+    {
+        try {
+            $tier = $this->tiers->find($id);
+
+            $this->tiers->delete($tier);
+
+            return $this->success(
+                message: 'Account tier deleted successfully.',
+            );
+        } catch (ModelNotFoundException $e) {
+            return $this->error(
+                message: 'The requested account tier was not found.',
+                responseCode: '404',
+                statusCode: 404,
             );
         } catch (\Throwable $e) {
             report($e);

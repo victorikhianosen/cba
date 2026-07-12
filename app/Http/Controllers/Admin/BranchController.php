@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Branch\StoreBranchRequest;
-use App\Http\Requests\Branch\UpdateBranchRequest;
-use App\Http\Requests\Branch\UpdateBranchStatusRequest;
-use App\Http\Resources\Branch\BranchResource;
+use App\Http\Requests\Admin\Branch\StoreBranchRequest;
+use App\Http\Requests\Admin\Branch\UpdateBranchRequest;
+use App\Http\Requests\Admin\Branch\UpdateBranchStatusRequest;
+use App\Http\Resources\Admin\Branch\BranchResource;
 use App\Services\Audit\AuditService;
 use App\Services\Branch\BranchService;
 use App\Traits\ApiResponse;

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\User\LoginRequest;
-use App\Http\Requests\User\TwoFactorVerifyRequest;
-use App\Http\Resources\User\UserResource;
+use App\Http\Requests\Admin\User\LoginRequest;
+use App\Http\Requests\Admin\User\TwoFactorVerifyRequest;
+use App\Http\Resources\Admin\User\UserResource;
 use App\Services\User\AuthService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;

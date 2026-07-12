@@ -3,53 +3,53 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\Currency\StoreCurrencyRequest;
-use App\Http\Requests\Admin\Currency\UpdateCurrencyRequest;
-use App\Http\Requests\Admin\Currency\UpdateCurrencyStatusRequest;
-use App\Http\Resources\Admin\Currency\CurrencyResource;
-use App\Services\Currency\CurrencyService;
+use App\Http\Requests\Admin\AccountOfficer\StoreAccountOfficerRequest;
+use App\Http\Requests\Admin\AccountOfficer\UpdateAccountOfficerRequest;
+use App\Http\Requests\Admin\AccountOfficer\UpdateAccountOfficerStatusRequest;
+use App\Http\Resources\Admin\AccountOfficer\AccountOfficerResource;
+use App\Services\AccountOfficer\AccountOfficerService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
-class CurrencyController extends Controller
+class AccountOfficerController extends Controller
 {
     use ApiResponse;
 
     public function __construct(
-        private CurrencyService $currencies,
+        private AccountOfficerService $officers,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
-        $currencies = $this->currencies->list($request->integer('per_page', 15));
+        $officers = $this->officers->list($request->integer('per_page', 15));
 
         return $this->success(
-            message: 'Currencies retrieved successfully.',
-            data: CurrencyResource::collection($currencies),
+            message: 'Account officers retrieved successfully.',
+            data: AccountOfficerResource::collection($officers),
         );
     }
 
     public function show(int $id): JsonResponse
     {
-        $currency = $this->currencies->find($id);
+        $officer = $this->officers->find($id);
 
         return $this->success(
-            message: 'Currency retrieved successfully.',
-            data: new CurrencyResource($currency),
+            message: 'Account officer retrieved successfully.',
+            data: new AccountOfficerResource($officer),
         );
     }
 
-    public function store(StoreCurrencyRequest $request): JsonResponse
+    public function store(StoreAccountOfficerRequest $request): JsonResponse
     {
         try {
-            $currency = $this->currencies->create($request->validated());
+            $officer = $this->officers->create($request->validated());
 
             return $this->success(
-                message: 'Currency created successfully.',
-                data: new CurrencyResource($currency),
+                message: 'Account officer created successfully.',
+                data: new AccountOfficerResource($officer),
                 responseCode: '000',
                 statusCode: 201,
             );
@@ -71,19 +71,19 @@ class CurrencyController extends Controller
         }
     }
 
-    public function update(UpdateCurrencyRequest $request, int $id): JsonResponse
+    public function update(UpdateAccountOfficerRequest $request, int $id): JsonResponse
     {
         try {
-            $currency = $this->currencies->find($id);
-            $currency = $this->currencies->update($currency, $request->validated());
+            $officer = $this->officers->find($id);
+            $officer = $this->officers->update($officer, $request->validated());
 
             return $this->success(
-                message: 'Currency updated successfully.',
-                data: new CurrencyResource($currency),
+                message: 'Account officer updated successfully.',
+                data: new AccountOfficerResource($officer),
             );
         } catch (ModelNotFoundException $e) {
             return $this->error(
-                message: 'The requested currency was not found.',
+                message: 'The requested account officer was not found.',
                 responseCode: '404',
                 statusCode: 404,
             );
@@ -105,19 +105,19 @@ class CurrencyController extends Controller
         }
     }
 
-    public function updateStatus(UpdateCurrencyStatusRequest $request, int $id): JsonResponse
+    public function updateStatus(UpdateAccountOfficerStatusRequest $request, int $id): JsonResponse
     {
         try {
-            $currency = $this->currencies->find($id);
-            $currency = $this->currencies->updateStatus($currency, $request->validated()['status']);
+            $officer = $this->officers->find($id);
+            $officer = $this->officers->updateStatus($officer, $request->validated()['status']);
 
             return $this->success(
-                message: 'Currency status updated successfully.',
-                data: new CurrencyResource($currency),
+                message: 'Account officer status updated successfully.',
+                data: new AccountOfficerResource($officer),
             );
         } catch (ModelNotFoundException $e) {
             return $this->error(
-                message: 'The requested currency was not found.',
+                message: 'The requested account officer was not found.',
                 responseCode: '404',
                 statusCode: 404,
             );
@@ -135,16 +135,16 @@ class CurrencyController extends Controller
     public function destroy(int $id): JsonResponse
     {
         try {
-            $currency = $this->currencies->find($id);
+            $officer = $this->officers->find($id);
 
-            $this->currencies->delete($currency);
+            $this->officers->delete($officer);
 
             return $this->success(
-                message: 'Currency deleted successfully.',
+                message: 'Account officer deleted successfully.',
             );
         } catch (ModelNotFoundException $e) {
             return $this->error(
-                message: 'The requested currency was not found.',
+                message: 'The requested account officer was not found.',
                 responseCode: '404',
                 statusCode: 404,
             );
