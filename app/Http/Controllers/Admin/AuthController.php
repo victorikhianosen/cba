@@ -28,7 +28,7 @@ class AuthController extends Controller
 
             return $this->success(
                 message: $result['requires_setup']
-                    ? 'Password verified. Scan the QR code with Google Authenticator to finish setting up your account.'
+                    ? 'Scan the QR code with Google Authenticator to finish setting up your account.'
                     : 'Password verified. Enter the code from your Google Authenticator app to continue.',
                 data: [
                     'requires_setup'    => $result['requires_setup'],

@@ -2,54 +2,53 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Enums\ProductCategory;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\AccountProduct\StoreAccountProductRequest;
-use App\Http\Requests\Admin\AccountProduct\UpdateAccountProductRequest;
-use App\Http\Requests\Admin\AccountProduct\UpdateAccountProductStatusRequest;
-use App\Http\Resources\Admin\AccountProduct\AccountProductResource;
-use App\Services\AccountProduct\AccountProductService;
+use App\Http\Requests\Admin\InvestmentProduct\StoreInvestmentProductRequest;
+use App\Http\Requests\Admin\InvestmentProduct\UpdateInvestmentProductRequest;
+use App\Http\Requests\Admin\InvestmentProduct\UpdateInvestmentProductStatusRequest;
+use App\Http\Resources\Admin\InvestmentProduct\InvestmentProductResource;
+use App\Services\InvestmentProduct\InvestmentProductService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
-class AccountProductController extends Controller
+class InvestmentProductController extends Controller
 {
     use ApiResponse;
 
     public function __construct(
-        private AccountProductService $accountProducts,
+        private InvestmentProductService $investmentProducts,
     ) {}
 
     public function index(Request $request): JsonResponse
     {
-        $accountProducts = $this->accountProducts->list($request->integer('per_page', 15), ProductCategory::DEPOSIT->productTypes());
+        $investmentProducts = $this->investmentProducts->list($request->integer('per_page', 15));
 
         return $this->success(
-            message: 'Account products retrieved successfully.',
-            data: AccountProductResource::collection($accountProducts),
+            message: 'Investment products retrieved successfully.',
+            data: InvestmentProductResource::collection($investmentProducts),
         );
     }
 
     public function show(int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, ProductCategory::DEPOSIT->productTypes());
+        $investmentProduct = $this->investmentProducts->find($id);
 
         return $this->success(
-            message: 'Account product retrieved successfully.',
-            data: new AccountProductResource($accountProduct),
+            message: 'Investment product retrieved successfully.',
+            data: new InvestmentProductResource($investmentProduct),
         );
     }
 
-    public function store(StoreAccountProductRequest $request): JsonResponse
+    public function store(StoreInvestmentProductRequest $request): JsonResponse
     {
         try {
-            $accountProduct = $this->accountProducts->create($request->toAccountProductData());
+            $investmentProduct = $this->investmentProducts->create($request->toInvestmentProductData());
 
             return $this->success(
-                message: 'Account product created successfully.',
-                data: new AccountProductResource($accountProduct),
+                message: 'Investment product created successfully.',
+                data: new InvestmentProductResource($investmentProduct),
                 responseCode: '000',
                 statusCode: 201,
             );
@@ -71,16 +70,16 @@ class AccountProductController extends Controller
         }
     }
 
-    public function update(UpdateAccountProductRequest $request, int $id): JsonResponse
+    public function update(UpdateInvestmentProductRequest $request, int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, ProductCategory::DEPOSIT->productTypes());
+        $investmentProduct = $this->investmentProducts->find($id);
 
         try {
-            $accountProduct = $this->accountProducts->update($accountProduct, $request->validated());
+            $investmentProduct = $this->investmentProducts->update($investmentProduct, $request->validated());
 
             return $this->success(
-                message: 'Account product updated successfully.',
-                data: new AccountProductResource($accountProduct),
+                message: 'Investment product updated successfully.',
+                data: new InvestmentProductResource($investmentProduct),
             );
         } catch (ValidationException $e) {
             return $this->error(
@@ -102,14 +101,14 @@ class AccountProductController extends Controller
 
     public function approve(int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, ProductCategory::DEPOSIT->productTypes());
+        $investmentProduct = $this->investmentProducts->find($id);
 
         try {
-            $accountProduct = $this->accountProducts->approve($accountProduct);
+            $investmentProduct = $this->investmentProducts->approve($investmentProduct);
 
             return $this->success(
-                message: 'Account product approved successfully.',
-                data: new AccountProductResource($accountProduct),
+                message: 'Investment product approved successfully.',
+                data: new InvestmentProductResource($investmentProduct),
             );
         } catch (ValidationException $e) {
             return $this->error(
@@ -129,16 +128,16 @@ class AccountProductController extends Controller
         }
     }
 
-    public function updateStatus(UpdateAccountProductStatusRequest $request, int $id): JsonResponse
+    public function updateStatus(UpdateInvestmentProductStatusRequest $request, int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, ProductCategory::DEPOSIT->productTypes());
+        $investmentProduct = $this->investmentProducts->find($id);
 
         try {
-            $accountProduct = $this->accountProducts->updateStatus($accountProduct, $request->validated()['status']);
+            $investmentProduct = $this->investmentProducts->updateStatus($investmentProduct, $request->validated()['status']);
 
             return $this->success(
-                message: 'Account product status updated successfully.',
-                data: new AccountProductResource($accountProduct),
+                message: 'Investment product status updated successfully.',
+                data: new InvestmentProductResource($investmentProduct),
             );
         } catch (\Throwable $e) {
             report($e);
@@ -153,13 +152,13 @@ class AccountProductController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
-        $accountProduct = $this->accountProducts->find($id, ProductCategory::DEPOSIT->productTypes());
+        $investmentProduct = $this->investmentProducts->find($id);
 
         try {
-            $this->accountProducts->delete($accountProduct);
+            $this->investmentProducts->delete($investmentProduct);
 
             return $this->success(
-                message: 'Account product deleted successfully.',
+                message: 'Investment product deleted successfully.',
             );
         } catch (\Throwable $e) {
             report($e);

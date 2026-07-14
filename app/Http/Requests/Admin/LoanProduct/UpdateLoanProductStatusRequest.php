@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests\Admin\AccountProduct;
+namespace App\Http\Requests\Admin\LoanProduct;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateAccountProductStatusRequest extends FormRequest
+class UpdateLoanProductStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {

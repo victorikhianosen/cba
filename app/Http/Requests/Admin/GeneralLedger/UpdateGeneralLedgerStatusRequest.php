@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests\Admin\AccountProduct;
+namespace App\Http\Requests\Admin\GeneralLedger;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateAccountProductStatusRequest extends FormRequest
+class UpdateGeneralLedgerStatusRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -15,7 +15,7 @@ class UpdateAccountProductStatusRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'status' => ['required', Rule::in(['active', 'inactive', 'disabled', 'rejected'])],
+            'status' => ['required', Rule::in(['active', 'inactive', 'rejected'])],
         ];
     }
 }

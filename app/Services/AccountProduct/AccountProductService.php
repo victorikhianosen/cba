@@ -2,147 +2,277 @@
 
 namespace App\Services\AccountProduct;
 
+use App\Enums\SavingsProductFinancialAccountType;
 use App\Models\AccountProduct;
+use App\Models\Currency;
+use App\Models\GeneralLedger;
+use App\Models\ProductToGlAccountMapping;
 use App\Services\Audit\AuditService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AccountProductService
 {
+    private const PRODUCT_TYPE_PREFIXES = [
+        'savings'     => 'SAV',
+        'current'     => 'CUR',
+        'merchant'    => 'MCH',
+        'corporate'   => 'COR',
+        'domiciliary' => 'DOM',
+    ];
+
     public function __construct(
         private AuditService $audit,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    /**
+     * @param string|string[]|null $productType
+     */
+    public function list(int $perPage = 15, string|array|null $productType = null): LengthAwarePaginator
     {
-        return AccountProduct::query()->with('currency')->latest()->paginate($perPage)->withQueryString();
+        return AccountProduct::query()
+            ->with('generalLedgerMappings.generalLedger')
+            ->when($productType, fn ($query) => is_array($productType)
+                ? $query->whereIn('product_type', $productType)
+                : $query->where('product_type', $productType))
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
-    public function find(int $id): AccountProduct
+    /**
+     * @param string|string[]|null $productType
+     */
+    public function find(int $id, string|array|null $productType = null): AccountProduct
     {
-        return AccountProduct::with('currency')->findOrFail($id);
+        return AccountProduct::with('generalLedgerMappings.generalLedger')
+            ->when($productType, fn ($query) => is_array($productType)
+                ? $query->whereIn('product_type', $productType)
+                : $query->where('product_type', $productType))
+            ->findOrFail($id);
     }
 
     public function create(array $data): AccountProduct
     {
         $actor = auth()->user();
 
-        $data['code']       = Str::upper(trim($data['code']));
-        $data['status']     = 'pending';
-        $data['created_by'] = $actor?->username;
+        $accountProduct = DB::transaction(function () use ($data) {
+            $currency = Currency::findOrFail($data['currency_id']);
 
-        unset($data['approved_by'], $data['approved_at']);
+            $this->assertGeneralLedgerMappingsAreValid($data['general_ledgers'], $currency, $data['allow_overdraft'] ?? false);
 
-        $product = AccountProduct::create($data)->fresh('currency');
+            $generalLedgers = $data['general_ledgers'];
+            unset($data['general_ledgers']);
+
+            $data['code']            = $this->generateProductCode($data['product_type']);
+            $data['currency_code']   = $currency->code;
+            $data['currency_digits'] = $data['currency_digits'] ?? 2;
+            $data['created_by']      = auth()->id();
+
+            $accountProduct = AccountProduct::create($data)->refresh();
+
+            foreach ($generalLedgers as $mapping) {
+                $type = SavingsProductFinancialAccountType::fromName($mapping['financial_account_type']);
+
+                $accountProduct->generalLedgerMappings()->create([
+                    'general_ledger_id'           => $mapping['general_ledger_id'],
+                    'financial_account_type'      => $type->value,
+                    'financial_account_type_name' => $type->name,
+                ]);
+            }
+
+            return $accountProduct->load('generalLedgerMappings.generalLedger');
+        });
 
         $this->audit->log(
             action: 'created',
             module: 'account_products',
-            auditable: $product,
-            after: $product->toArray(),
-            description: "Account product '{$product->name}' ({$product->code}) was created by '{$actor?->username}' and is pending approval.",
+            auditable: $accountProduct,
+            after: $accountProduct->toArray(),
+            description: "Account product '{$accountProduct->name}' ({$accountProduct->code}) was created by '{$actor?->username}'.",
         );
 
-        return $product;
+        return $accountProduct;
     }
 
-    public function update(AccountProduct $product, array $data): AccountProduct
+    public function update(AccountProduct $accountProduct, array $data): AccountProduct
     {
-        $before = $product->toArray();
+        $before = $accountProduct->toArray();
         $actor  = auth()->user();
 
-        if (isset($data['code'])) {
-            $data['code'] = Str::upper(trim($data['code']));
-        }
+        unset(
+            $data['code'],
+            $data['product_type'],
+            $data['currency_id'],
+            $data['currency_code'],
+            $data['currency_digits'],
+            $data['status'],
+            $data['created_by'],
+            $data['approved_by'],
+            $data['approved_at'],
+        );
 
-        unset($data['status'], $data['created_by'], $data['approved_by'], $data['approved_at']);
-
-        $product->update($data);
-        $product->refresh()->load('currency');
+        $accountProduct->update($data);
+        $accountProduct->refresh();
 
         $this->audit->log(
             action: 'updated',
             module: 'account_products',
-            auditable: $product,
+            auditable: $accountProduct,
             before: $before,
-            after: $product->toArray(),
-            description: "Account product '{$product->name}' ({$product->code}) was updated by '{$actor?->username}'.",
+            after: $accountProduct->toArray(),
+            description: "Account product '{$accountProduct->name}' ({$accountProduct->code}) was updated by '{$actor?->username}'.",
         );
 
-        return $product;
+        return $accountProduct;
     }
 
-    public function approve(AccountProduct $product): AccountProduct
+    public function approve(AccountProduct $accountProduct): AccountProduct
     {
-        if ($product->status !== 'pending') {
+        if ($accountProduct->status !== 'pending') {
             throw ValidationException::withMessages([
-                'status' => ["Only pending account products can be approved. This product is currently '{$product->status}'."],
+                'status' => ["Only pending account products can be approved."],
             ]);
         }
 
-        $actor = auth()->user();
+        $before = $accountProduct->status;
+        $actor  = auth()->user();
 
-        $product->update([
+        $accountProduct->update([
             'status'      => 'active',
-            'approved_by' => $actor?->username,
+            'approved_by' => auth()->id(),
             'approved_at' => now(),
         ]);
-
-        $product->refresh()->load('currency');
+        $accountProduct->refresh();
 
         $this->audit->log(
             action: 'approved',
             module: 'account_products',
-            auditable: $product,
-            before: ['status' => 'pending'],
-            after: ['status' => $product->status, 'approved_by' => $product->approved_by, 'approved_at' => $product->approved_at],
-            description: "Account product '{$product->name}' ({$product->code}) was approved by '{$actor?->username}'.",
+            auditable: $accountProduct,
+            before: ['status' => $before],
+            after: ['status' => $accountProduct->status],
+            description: "Account product '{$accountProduct->name}' ({$accountProduct->code}) was approved by '{$actor?->username}'.",
         );
 
-        return $product;
+        return $accountProduct;
     }
 
-    public function updateStatus(AccountProduct $product, string $status): AccountProduct
+    public function updateStatus(AccountProduct $accountProduct, string $status): AccountProduct
     {
-        if ($product->status === 'pending') {
-            throw ValidationException::withMessages([
-                'status' => ["This account product is pending approval. Please approve it before changing its status."],
-            ]);
-        }
-
-        $before = $product->status;
+        $before = $accountProduct->status;
         $actor  = auth()->user();
 
-        $product->update(['status' => $status]);
-        $product->refresh();
+        $accountProduct->update(['status' => $status]);
+        $accountProduct->refresh();
 
         $this->audit->log(
             action: 'status_updated',
             module: 'account_products',
-            auditable: $product,
+            auditable: $accountProduct,
             before: ['status' => $before],
-            after: ['status' => $product->status],
-            description: "Account product '{$product->name}' ({$product->code}) status changed from '{$before}' to '{$product->status}' by '{$actor?->username}'.",
+            after: ['status' => $accountProduct->status],
+            description: "Account product '{$accountProduct->name}' ({$accountProduct->code}) status changed from '{$before}' to '{$accountProduct->status}' by '{$actor?->username}'.",
         );
 
-        return $product;
+        return $accountProduct;
     }
 
-    public function delete(AccountProduct $product): void
+    public function delete(AccountProduct $accountProduct): void
     {
-        $name  = $product->name;
-        $code  = $product->code;
+        $name  = $accountProduct->name;
+        $code  = $accountProduct->code;
         $actor = auth()->user();
 
-        $product->delete();
+        $accountProduct->delete();
 
         $this->audit->log(
             action: 'deleted',
             module: 'account_products',
-            auditable: $product,
+            auditable: $accountProduct,
             before: ['name' => $name, 'code' => $code],
             description: "Account product '{$name}' ({$code}) was deleted by '{$actor?->username}'.",
         );
+    }
+
+    private function assertGeneralLedgerMappingsAreValid(array $mappings, Currency $productCurrency, bool $allowOverdraft = false): void
+    {
+        $providedTypes = collect($mappings)->pluck('financial_account_type');
+
+        foreach ($providedTypes as $name) {
+            if (! in_array($name, SavingsProductFinancialAccountType::names(), true)) {
+                throw ValidationException::withMessages([
+                    'general_ledgers' => ["'{$name}' is not a valid financial account type for account products."],
+                ]);
+            }
+        }
+
+        foreach ($this->requiredFinancialAccountTypes($allowOverdraft) as $type) {
+            if (! $providedTypes->contains($type->name)) {
+                throw ValidationException::withMessages([
+                    'general_ledgers' => ["{$type->label()} GL mapping is required."],
+                ]);
+            }
+        }
+
+        if ($providedTypes->duplicates()->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'general_ledgers' => ['Each financial account type can only be mapped once.'],
+            ]);
+        }
+
+        $generalLedgerIds = collect($mappings)->pluck('general_ledger_id');
+
+        if ($generalLedgerIds->duplicates()->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'general_ledgers' => ['A general ledger cannot be mapped more than once in the same request.'],
+            ]);
+        }
+
+        foreach ($mappings as $mapping) {
+            $ledger = GeneralLedger::findOrFail($mapping['general_ledger_id']);
+
+            if ((int) $ledger->currency_id !== (int) $productCurrency->id) {
+                throw ValidationException::withMessages([
+                    'general_ledgers' => [
+                        "Currency mismatch for ledger '{$ledger->name}'. Product currency is {$productCurrency->code} but ledger currency is " . ($ledger->currency_code ?? 'unset') . '.',
+                    ],
+                ]);
+            }
+
+            if (ProductToGlAccountMapping::where('general_ledger_id', $ledger->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'general_ledgers' => ["General ledger '{$ledger->name}' is already mapped to another product."],
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @return SavingsProductFinancialAccountType[]
+     */
+    private function requiredFinancialAccountTypes(bool $allowOverdraft = false): array
+    {
+        $required = SavingsProductFinancialAccountType::required();
+
+        if ($allowOverdraft) {
+            $required[] = SavingsProductFinancialAccountType::OVERDRAFT_PORTFOLIO_CONTROL;
+        }
+
+        return $required;
+    }
+
+    private function generateProductCode(string $productType): string
+    {
+        $prefix = self::PRODUCT_TYPE_PREFIXES[$productType];
+
+        $lastSequence = AccountProduct::where('code', 'like', "{$prefix}%")
+            ->lockForUpdate()
+            ->orderByDesc('code')
+            ->value('code');
+
+        $nextNumber = $lastSequence ? ((int) substr($lastSequence, strlen($prefix))) + 1 : 1;
+
+        return $prefix . str_pad((string) $nextNumber, 6, '0', STR_PAD_LEFT);
     }
 }

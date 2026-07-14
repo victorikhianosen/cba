@@ -15,7 +15,7 @@ class TwoFactorVerifyRequest extends FormRequest
     {
         return [
             'two_factor_token' => ['required', 'string'],
-            'code'              => ['required', 'string', 'regex:/^[0-9]{6}$/'],
+            'code'              => ['required', 'string', 'max_digits:6'],
         ];
     }
 

@@ -17,10 +17,6 @@ return new class extends Migration
             $table->foreignId('customer_id')
                 ->constrained('customers')
                 ->cascadeOnDelete();
-
-            // No FK constraint yet — the `accounts` table doesn't exist in
-            // this app. Add ->constrained('accounts') in a follow-up
-            // migration once it does.
             $table->foreignId('account_id')->nullable();
 
             $table->string('title')->nullable();

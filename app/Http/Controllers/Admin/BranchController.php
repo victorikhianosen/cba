@@ -74,8 +74,9 @@ class BranchController extends Controller
 
     public function update(UpdateBranchRequest $request, int $id): JsonResponse
     {
+        $branch = $this->branches->find($id);
+
         try {
-            $branch = $this->branches->find($id);
             $before = $branch->toArray();
 
             $branch = $this->branches->update($branch, $request->validated());
@@ -107,8 +108,9 @@ class BranchController extends Controller
 
     public function updateStatus(UpdateBranchStatusRequest $request, int $id): JsonResponse
     {
+        $branch = $this->branches->find($id);
+
         try {
-            $branch = $this->branches->find($id);
             $before = $branch->status;
 
             $branch = $this->branches->updateStatus($branch, $request->validated()['status']);

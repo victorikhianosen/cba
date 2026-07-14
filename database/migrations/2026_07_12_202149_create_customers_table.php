@@ -11,8 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // The initial scaffold created an empty `customers` stub (id + timestamps
-        // only, 0 rows). Replace it with the full schema below.
+  
         Schema::dropIfExists('customers');
 
         Schema::create('customers', function (Blueprint $table) {

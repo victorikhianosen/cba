@@ -105,33 +105,6 @@ class AccountOfficerController extends Controller
         }
     }
 
-    public function updateStatus(UpdateAccountOfficerStatusRequest $request, int $id): JsonResponse
-    {
-        try {
-            $officer = $this->officers->find($id);
-            $officer = $this->officers->updateStatus($officer, $request->validated()['status']);
-
-            return $this->success(
-                message: 'Account officer status updated successfully.',
-                data: new AccountOfficerResource($officer),
-            );
-        } catch (ModelNotFoundException $e) {
-            return $this->error(
-                message: 'The requested account officer was not found.',
-                responseCode: '404',
-                statusCode: 404,
-            );
-        } catch (\Throwable $e) {
-            report($e);
-
-            return $this->error(
-                message: 'We are unable to process your request please try again.',
-                responseCode: '500',
-                statusCode: 500,
-            );
-        }
-    }
-
     public function destroy(int $id): JsonResponse
     {
         try {
