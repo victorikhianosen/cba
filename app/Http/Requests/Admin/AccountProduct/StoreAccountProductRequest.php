@@ -35,7 +35,6 @@ class StoreAccountProductRequest extends FormRequest
             'product_type'                    => ['required', 'string', Rule::in(ProductCategory::DEPOSIT->productTypes())],
             'description'                     => ['nullable', 'string'],
             'currency_id'                     => ['required', 'integer', 'exists:currencies,id'],
-            'currency_digits'                 => ['nullable', 'integer', 'min:0', 'max:6'],
             'interest_rate'                   => ['nullable', 'numeric', 'min:0'],
             'interest_type'                   => ['nullable', Rule::in(['flat', 'daily_balance', 'average_daily_balance', 'tiered'])],
             'interest_compounding_period'     => ['nullable', Rule::in(['daily', 'weekly', 'monthly', 'quarterly', 'annually'])],
