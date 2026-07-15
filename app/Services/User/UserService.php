@@ -4,8 +4,10 @@ namespace App\Services\User;
 
 use App\Models\User;
 use App\Services\Audit\AuditService;
-use App\Services\Message\MessageService;
+use App\Services\Communication\CommunicationService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -14,18 +16,18 @@ class UserService
 {
     public function __construct(
         private AuditService $audit,
-        private MessageService $message,
+        private CommunicationService $message,
 
     ) {}
 
     public function list(int $perPage = 15): LengthAwarePaginator
     {
-        return User::query()->latest()->paginate($perPage)->withQueryString();
+        return User::query()->with(['roles', 'permissions'])->latest()->paginate($perPage)->withQueryString();
     }
 
     public function find(int $id): User
     {
-        return User::findOrFail($id);
+        return User::with(['roles', 'permissions'])->findOrFail($id);
     }
 
 
@@ -52,20 +54,20 @@ class UserService
             );
         })->afterResponse();
 
-    dispatch(function () use ($user, $plainPassword) {
-    $this->message->sendEmail(
-        actor: $user,
-        type: 'account_created',
-        recipient: $user->email,
-        body: view('emails.bodies.user.created', [
-            'user'     => $user,
-            'username' => $user->username,
-            'password' => $plainPassword,
-        ])->render(),
-        subject: 'Your Account is Ready',
-        payload: ['user_id' => $user->id, 'code' => $user->code],
-    );
-})->afterResponse();
+        dispatch(function () use ($user, $plainPassword) {
+            $this->message->sendEmail(
+                actor: $user,
+                type: 'account_created',
+                recipient: $user->email,
+                body: view('emails.bodies.user.created', [
+                    'user'     => $user,
+                    'username' => $user->username,
+                    'password' => $plainPassword,
+                ])->render(),
+                subject: 'Your Account is Ready',
+                payload: ['user_id' => $user->id, 'code' => $user->code],
+            );
+        })->afterResponse();
 
         return $user;
     }
@@ -94,6 +96,76 @@ class UserService
             before: $before,
             after: $user->only($trackedFields),
             description: "User '{$user->username}' ({$user->code}) updated.",
+        );
+
+        return $user;
+    }
+
+    public function resetPassword(int $id): User
+    {
+        $user = $this->find($id);
+
+        $plainPassword = Str::password(
+            length: 12,
+            letters: true,
+            numbers: true,
+            symbols: false,
+            spaces: false,
+        );
+
+        $user->update([
+            'password'       => bcrypt($plainPassword),
+            'reset_password' => true,
+        ]);
+        $user->refresh();
+
+        $actor = auth()->user();
+
+        $this->audit->log(
+            action: 'password_reset',
+            module: 'users',
+            auditable: $user,
+            description: "Password for user '{$user->username}' ({$user->code}) was reset by '{$actor?->username}'.",
+        );
+
+        dispatch(function () use ($user, $plainPassword) {
+            $this->message->sendEmail(
+                actor: $user,
+                type: 'password_reset',
+                recipient: $user->email,
+                body: view('emails.bodies.user.password_reset', [
+                    'user'     => $user,
+                    'password' => $plainPassword,
+                ])->render(),
+                subject: 'Your Password Has Been Reset',
+                payload: ['user_id' => $user->id, 'code' => $user->code],
+            );
+        })->afterResponse();
+
+        return $user;
+    }
+
+    public function uploadProfilePicture(int $id, UploadedFile $file): User
+    {
+        $user = $this->find($id);
+        $before = $user->profile_picture;
+
+        $path = $file->store('profile-pictures', 's3');
+
+        $user->update(['profile_picture' => $path]);
+        $user->refresh();
+
+        if ($before) {
+            Storage::disk('s3')->delete($before);
+        }
+
+        $this->audit->log(
+            action: 'profile_picture_updated',
+            module: 'users',
+            auditable: $user,
+            before: ['profile_picture' => $before],
+            after: ['profile_picture' => $user->profile_picture],
+            description: "Profile picture for user '{$user->username}' ({$user->code}) was updated.",
         );
 
         return $user;
@@ -132,36 +204,36 @@ class UserService
 
 
     private function generateUniqueUsername(string $firstName, string $lastName): string
-{
-    $first = Str::slug($firstName, '');
-    $full  = Str::slug($firstName . $lastName, '');
+    {
+        $first = Str::slug($firstName, '');
+        $full  = Str::slug($firstName . $lastName, '');
 
-    // Try first name alone first
-    if (! User::where('username', $first)->exists()) {
-        return $first;
+        // Try first name alone first
+        if (! User::where('username', $first)->exists()) {
+            return $first;
+        }
+
+        // Then try first name + last name together
+        if (! User::where('username', $full)->exists()) {
+            return $full;
+        }
+
+        // Then append numbers until unique, no dots
+        $suffix = 1;
+        do {
+            $username = $full . $suffix;
+            $suffix++;
+        } while (User::where('username', $username)->exists());
+
+        return $username;
     }
-
-    // Then try first name + last name together
-    if (! User::where('username', $full)->exists()) {
-        return $full;
-    }
-
-    // Then append numbers until unique, no dots
-    $suffix = 1;
-    do {
-        $username = $full . $suffix;
-        $suffix++;
-    } while (User::where('username', $username)->exists());
-
-    return $username;
-}
 
 
     public function syncRoles(User $user, array $roles): User
     {
         $user->syncRoles($this->resolveRoles($roles));
 
-        return $user->refresh()->load('roles');
+        return $user->refresh()->load(['roles', 'permissions']);
     }
 
     public function assignRoles(User $user, array $roles): User
@@ -170,7 +242,7 @@ class UserService
         $actor  = auth()->user();
 
         $user->assignRole($this->resolveRoles($roles));
-        $user->refresh()->load('roles');
+        $user->refresh()->load(['roles', 'permissions']);
 
         $this->audit->log(
             action: 'roles_assigned',
@@ -190,7 +262,7 @@ class UserService
         $actor  = auth()->user();
 
         $user->removeRole($this->resolveRoles($roles));
-        $user->refresh()->load('roles');
+        $user->refresh()->load(['roles', 'permissions']);
 
         $this->audit->log(
             action: 'roles_removed',

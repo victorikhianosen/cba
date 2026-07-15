@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CheckPermissionMiddleware;
 use App\Http\Middleware\GlobalLogger;
 
 use Illuminate\Foundation\Application;
@@ -21,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
 
         $middleware->append(GlobalLogger::class);
+
+        $middleware->alias([
+            'permission' => CheckPermissionMiddleware::class,
+        ]);
 
     })
     ->withExceptions(function (Exceptions $exceptions): void {

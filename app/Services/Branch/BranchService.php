@@ -21,6 +21,7 @@ class BranchService
     {
         $data['code'] = $this->generateUniqueCode();
 
+        $data['status'] = 'pending';
         return Branch::create($data);
     }
 

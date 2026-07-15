@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\Branch\StoreBranchRequest;
 use App\Http\Requests\Admin\Branch\UpdateBranchRequest;
 use App\Http\Requests\Admin\Branch\UpdateBranchStatusRequest;
 use App\Http\Resources\Admin\Branch\BranchResource;
+use App\Models\Branch;
 use App\Services\Audit\AuditService;
 use App\Services\Branch\BranchService;
 use App\Traits\ApiResponse;
@@ -21,14 +22,32 @@ class BranchController extends Controller
         private BranchService $branches,
         private AuditService $audit,
     ) {}
-
-    public function index(Request $request): JsonResponse
+    public function index(Request $request)
     {
-        $branches = $this->branches->list($request->integer('per_page', 1));
+        $branches = $this->branches->list(
+            $request->integer('per_page', 50)
+        );
 
         return $this->success(
             message: 'Branches retrieved successfully.',
             data: BranchResource::collection($branches),
+            meta: [
+                'statistics' => [
+                    'total_branches' => $branches->total(),
+
+                    'total_active' => Branch::query()
+                        ->where('status', 'active')
+                        ->count(),
+
+                    'total_pending' => Branch::query()
+                        ->where('status', 'pending')
+                        ->count(),
+
+                    'total_inactive' => Branch::query()
+                        ->where('status', 'inactive')
+                        ->count(),
+                ],
+            ],
         );
     }
 

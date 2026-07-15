@@ -27,6 +27,7 @@ return new class extends Migration
             $table->string('password');
 
             $table->string('gender')->nullable();
+            $table->string('profile_picture')->nullable();
             $table->text('address')->nullable();
             $table->string('phone')->nullable();
             $table->string('city')->nullable();
@@ -39,7 +40,9 @@ return new class extends Migration
             $table->string('two_factor_code')->nullable();
             $table->dateTime('two_factor_expire_at')->nullable();
             $table->boolean('enable_2fa')->default(false);
+            $table->text('google2fa_secret')->nullable();
             $table->string('status')->default('pending');
+            $table->boolean('reset_password')->default(false);
 
             $table->unsignedTinyInteger('failed_login_attempts')->default(0);
             $table->timestamp('locked_until')->nullable();

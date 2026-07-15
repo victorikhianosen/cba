@@ -17,9 +17,14 @@ class RoleService
         private AuditService $audit,
     ) {}
 
-    public function list(int $perPage = 15): LengthAwarePaginator
+    public function list(int $perPage = 15, ?string $search = null): LengthAwarePaginator
     {
-        return Role::query()->with('permissions')->latest()->paginate($perPage)->withQueryString();
+        return Role::query()
+            ->with('permissions')
+            ->when($search, fn ($query) => $query->where('name', 'like', '%' . $this->normalizeName($search) . '%'))
+            ->latest()
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
     public function find(int $id): Role

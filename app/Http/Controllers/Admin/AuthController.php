@@ -36,6 +36,7 @@ class AuthController extends Controller
                     'secret'            => $result['secret'] ?? null,
                     'two_factor_token'  => $result['two_factor_token'],
                 ],
+                responseCode: $result['requires_setup'] ? '201' : '000',
             );
         } catch (ValidationException $e) {
             return $this->error(
@@ -86,6 +87,16 @@ class AuthController extends Controller
                 statusCode: 500,
             );
         }
+    }
+
+    public function me(Request $request): JsonResponse
+    {
+        $user = $request->user('user')->load(['roles', 'permissions']);
+
+        return $this->success(
+            message: 'User details retrieved successfully.',
+            data: new UserResource($user),
+        );
     }
 
     public function logout(Request $request)

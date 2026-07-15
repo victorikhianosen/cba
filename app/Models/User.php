@@ -30,6 +30,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'google2fa_secret' => 'encrypted',
+            'reset_password' => 'boolean',
         ];
     }
 }

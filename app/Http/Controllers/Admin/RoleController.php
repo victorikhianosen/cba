@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
@@ -24,11 +26,20 @@ class RoleController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $roles = $this->roles->list($request->integer('per_page', 15));
+        $roles = $this->roles->list($request->integer('per_page', 15), $request->string('search')->value() ?: null);
 
         return $this->success(
             message: 'Roles retrieved successfully.',
             data: RoleResource::collection($roles),
+            meta: [
+                'statistics' => [
+                    'total_roles' => $roles->total(),
+                    'total_users_assigned' => Role::query()
+                        ->withCount('users')
+                        ->get()
+                        ->sum('users_count'),
+                ],
+            ],
         );
     }
 

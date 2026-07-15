@@ -11,8 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->text('google2fa_secret')->nullable()->after('enable_2fa');
+        Schema::create('banks', function (Blueprint $table) {
+            $table->id();
+            $table->string('bank_name');
+            $table->string('bank_code')->unique();
+            $table->string('short_code')->nullable()->unique();
+            $table->string('logo')->nullable();
+            $table->timestamps();
         });
     }
 
@@ -21,8 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('google2fa_secret');
-        });
+        Schema::dropIfExists('banks');
     }
 };
